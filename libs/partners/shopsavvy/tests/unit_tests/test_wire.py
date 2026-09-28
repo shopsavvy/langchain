@@ -141,47 +141,72 @@ def test_price_history_summary() -> None:
     {timestamp, price, currency, availability} (data-documentation.md "Example
     Response"; refinery's offerHistory handler).
 
-    No released shopsavvy-sdk parses this: 1.1.0 and 1.3.0 both read ``data``
-    as List[OfferWithHistory] (offers at the top level, ``id`` required), so
-    every real 200 raises a ValidationError. Expected to fail until the SDK
-    models the real shape.
+    Points arrive newest first; ``availability`` is omitted when it was not
+    observed and ``currency`` is null on an archived point with no recorded
+    currency. shopsavvy-sdk 1.1.0-1.3.0 read ``data`` as List[OfferWithHistory]
+    (offers at the top level, ``id`` required), so every real 200 raised a
+    ValidationError; 1.4.0 models the real shape, hence the >=1.4.0 floor.
     """
     tool = ShopSavvyPriceHistory(shopsavvy_api_key=SecretStr(API_KEY))
     offer = _offer("of_1", "Amazon", 298.0)
     offer["history"] = [
         {
-            "timestamp": "2026-08-01T00:00:00Z",
-            "price": 348.0,
-            "currency": "USD",
             "availability": "in",
-        },
-        {
-            "timestamp": "2026-08-10T00:00:00Z",
-            "price": 318.0,
-            "currency": "USD",
-            "availability": "in",
-        },
-        {
-            "timestamp": "2026-08-20T00:00:00Z",
             "price": 298.0,
             "currency": "USD",
-            "availability": "in",
+            "timestamp": "2026-08-20T00:00:00Z",
+        },
+        {
+            "availability": "out",
+            "price": 318.0,
+            "currency": "USD",
+            "timestamp": "2026-08-10T00:00:00Z",
+        },
+        {
+            "price": 348.0,
+            "currency": None,
+            "timestamp": "2026-08-01T00:00:00Z",
         },
     ]
-    seen = _wire(tool, {"success": True, "data": [{**PRODUCT, "offers": [offer]}]})
+    ebay = _offer("of_2", "eBay", 250.0)
+    ebay["history"] = []
+    seen = _wire(
+        tool,
+        {
+            "success": True,
+            "data": [{**PRODUCT, "offers": [offer, ebay]}],
+            "meta": {
+                "request_id": "req-7f3c9a",
+                "credits_used": 2,
+                "credits_remaining": 998,
+                "rate_limit_remaining": 999,
+            },
+        },
+    )
 
     out = json.loads(tool.invoke({"identifier": "B09XS7JWHH", "days_back": 30}))
 
     assert seen[0].url.path == "/v1/products/offers/history"
+    assert seen[0].url.params["ids"] == "B09XS7JWHH"
+    assert set(seen[0].url.params) == {"ids", "start", "end"}
     assert out == [
         {
             "product_title": PRODUCT["title"],
             "retailer": "Amazon",
             "data_points": 3,
+            "currency": "USD",
             "min_price": 298.0,
             "max_price": 348.0,
             "avg_price": 321.33,
-        }
+            "latest_price": 298.0,
+            "latest_timestamp": "2026-08-20T00:00:00Z",
+            "oldest_timestamp": "2026-08-01T00:00:00Z",
+        },
+        {
+            "product_title": PRODUCT["title"],
+            "retailer": "eBay",
+            "data_points": 0,
+        },
     ]
 
 

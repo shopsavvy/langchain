@@ -241,8 +241,9 @@ class ShopSavvyPriceHistory(BaseTool):  # type: ignore[override]
             run_manager: The run manager for callbacks.
 
         Returns:
-            JSON string with per-retailer price statistics including min, max,
-            and average prices.
+            JSON string with per-retailer price statistics: data point count
+            and, when there is history, currency, min/max/average price, and
+            the latest price with its timestamp.
         """
         try:
             days_back = max(1, min(365, days_back))
@@ -254,22 +255,33 @@ class ShopSavvyPriceHistory(BaseTool):  # type: ignore[override]
                 end_date=end_date.strftime("%Y-%m-%d"),
             )
             history_summary = []
-            # The endpoint returns the same product -> offers shape as
-            # get_current_offers; each offer carries ``history`` points of
-            # {timestamp, price, currency, availability}.
+            # The endpoint returns one ProductWithPriceHistory per product, each
+            # with ``offers``, and each offer carrying its own ``history`` of
+            # PriceHistoryEntry points {timestamp, price, currency,
+            # availability}, newest first.
             for product in result.data:
                 for offer in product.offers:
-                    points = offer.history or []
-                    prices = [p.price for p in points if p.price is not None]
+                    points = offer.history
                     summary: dict[str, Any] = {
                         "product_title": product.title,
                         "retailer": offer.retailer,
                         "data_points": len(points),
                     }
-                    if prices:
+                    if points:
+                        prices = [p.price for p in points]
+                        # A point's currency is None when none was recorded;
+                        # it is never assumed to be USD. Report a currency
+                        # only when every recorded one agrees.
+                        currencies = {p.currency for p in points if p.currency}
+                        summary["currency"] = (
+                            currencies.pop() if len(currencies) == 1 else None
+                        )
                         summary["min_price"] = min(prices)
                         summary["max_price"] = max(prices)
                         summary["avg_price"] = round(sum(prices) / len(prices), 2)
+                        summary["latest_price"] = points[0].price
+                        summary["latest_timestamp"] = points[0].timestamp
+                        summary["oldest_timestamp"] = points[-1].timestamp
                     history_summary.append(summary)
             return json.dumps(history_summary, indent=2)
         except Exception as e:
