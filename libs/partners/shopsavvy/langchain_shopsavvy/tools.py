@@ -254,21 +254,23 @@ class ShopSavvyPriceHistory(BaseTool):  # type: ignore[override]
                 end_date=end_date.strftime("%Y-%m-%d"),
             )
             history_summary = []
-            for offer in result.data:
-                # History points arrive under ``history`` as
-                # {timestamp, price, availability}; the API has never sent a
-                # ``price_history`` key.
-                points = offer.history or []
-                prices = [entry.price for entry in points if entry.price is not None]
-                summary: dict[str, Any] = {
-                    "retailer": offer.retailer,
-                    "data_points": len(points),
-                }
-                if prices:
-                    summary["min_price"] = min(prices)
-                    summary["max_price"] = max(prices)
-                    summary["avg_price"] = round(sum(prices) / len(prices), 2)
-                history_summary.append(summary)
+            # The endpoint returns the same product -> offers shape as
+            # get_current_offers; each offer carries ``history`` points of
+            # {timestamp, price, currency, availability}.
+            for product in result.data:
+                for offer in product.offers:
+                    points = offer.history or []
+                    prices = [p.price for p in points if p.price is not None]
+                    summary: dict[str, Any] = {
+                        "product_title": product.title,
+                        "retailer": offer.retailer,
+                        "data_points": len(points),
+                    }
+                    if prices:
+                        summary["min_price"] = min(prices)
+                        summary["max_price"] = max(prices)
+                        summary["avg_price"] = round(sum(prices) / len(prices), 2)
+                    history_summary.append(summary)
             return json.dumps(history_summary, indent=2)
         except Exception as e:
             raise ToolException(repr(e)) from e
