@@ -132,6 +132,7 @@ ban-relative-imports = "all"
 "tests/**/*.py" = [
     "S101", # Tests need assertions
     "S311", # Standard pseudo-random generators are not suitable for cryptographic purposes
+    "D",    # Docstring checks in tests (matches libs/partners/openai)
 ]
 "scripts/*.py" = [
     "INP001",   # Not a package

@@ -86,7 +86,5 @@ class ShopSavvyRetriever(BaseRetriever):
                 "brand": product.brand,
                 "category": product.category,
             }
-            documents.append(
-                Document(page_content=page_content, metadata=metadata)
-            )
+            documents.append(Document(page_content=page_content, metadata=metadata))
         return documents

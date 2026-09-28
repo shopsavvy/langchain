@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import os
 
-from shopsavvy import ShopSavvyConfig, ShopSavvyDataAPI  # type: ignore[import-untyped]
-
 from langchain_core.utils import convert_to_secret_str
+from shopsavvy import ShopSavvyConfig, ShopSavvyDataAPI  # type: ignore[import-untyped]
 
 
 def initialize_client(values: dict) -> dict:
@@ -19,9 +18,7 @@ def initialize_client(values: dict) -> dict:
         Updated dictionary with initialized client and secret key.
     """
     api_key = (
-        values.get("shopsavvy_api_key")
-        or os.environ.get("SHOPSAVVY_API_KEY")
-        or ""
+        values.get("shopsavvy_api_key") or os.environ.get("SHOPSAVVY_API_KEY") or ""
     )
     values["shopsavvy_api_key"] = convert_to_secret_str(api_key)
     config = ShopSavvyConfig(
