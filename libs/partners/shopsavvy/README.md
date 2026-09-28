@@ -11,11 +11,11 @@ pip install langchain-shopsavvy
 
 ## What is this?
 
-This package contains the LangChain integration with [ShopSavvy](https://shopsavvy.com), a price comparison platform with data on 100M+ products across thousands of retailers. It provides tools for product search, real-time price comparison, and price history analysis.
+This package contains the LangChain integration with [ShopSavvy](https://shopsavvy.com), a price comparison platform with product and pricing data from thousands of retailers. It provides tools for product search, real-time price comparison, and price history analysis.
 
 ## Setup
 
-Get a free API key at [shopsavvy.com/data](https://shopsavvy.com/data) and set it as an environment variable:
+Get an API key at [shopsavvy.com/data](https://shopsavvy.com/data) and set it as an environment variable:
 
 ```bash
 export SHOPSAVVY_API_KEY="ss_live_your_api_key"
