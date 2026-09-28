@@ -134,26 +134,48 @@ def test_price_comparison_sorted_by_price() -> None:
 
 
 def test_price_history_summary() -> None:
-    """History points arrive under ``history`` as {timestamp, price, availability}.
+    """History arrives as product -> offers -> history.
 
-    Needs a shopsavvy-sdk that models that shape: 1.1.0 (latest on PyPI as of
-    2026-09-27) declares a required ``price_history`` field the API never
-    sends and raises a ValidationError on every 200.
+    GET /products/offers/history returns the same product -> offers shape as
+    GET /products/offers, each offer carrying ``history`` points of
+    {timestamp, price, currency, availability} (data-documentation.md "Example
+    Response"; refinery's offerHistory handler).
+
+    No released shopsavvy-sdk parses this: 1.1.0 and 1.3.0 both read ``data``
+    as List[OfferWithHistory] (offers at the top level, ``id`` required), so
+    every real 200 raises a ValidationError. Expected to fail until the SDK
+    models the real shape.
     """
     tool = ShopSavvyPriceHistory(shopsavvy_api_key=SecretStr(API_KEY))
     offer = _offer("of_1", "Amazon", 298.0)
     offer["history"] = [
-        {"timestamp": "2026-08-01T00:00:00Z", "price": 348.0, "availability": "in"},
-        {"timestamp": "2026-08-10T00:00:00Z", "price": 318.0, "availability": "in"},
-        {"timestamp": "2026-08-20T00:00:00Z", "price": 298.0, "availability": "in"},
+        {
+            "timestamp": "2026-08-01T00:00:00Z",
+            "price": 348.0,
+            "currency": "USD",
+            "availability": "in",
+        },
+        {
+            "timestamp": "2026-08-10T00:00:00Z",
+            "price": 318.0,
+            "currency": "USD",
+            "availability": "in",
+        },
+        {
+            "timestamp": "2026-08-20T00:00:00Z",
+            "price": 298.0,
+            "currency": "USD",
+            "availability": "in",
+        },
     ]
-    seen = _wire(tool, {"success": True, "data": [offer]})
+    seen = _wire(tool, {"success": True, "data": [{**PRODUCT, "offers": [offer]}]})
 
     out = json.loads(tool.invoke({"identifier": "B09XS7JWHH", "days_back": 30}))
 
     assert seen[0].url.path == "/v1/products/offers/history"
     assert out == [
         {
+            "product_title": PRODUCT["title"],
             "retailer": "Amazon",
             "data_points": 3,
             "min_price": 298.0,
