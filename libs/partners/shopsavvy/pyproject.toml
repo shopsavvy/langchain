@@ -23,15 +23,13 @@ classifiers = [
 requires-python = ">=3.10.0,<4.0.0"
 dependencies = [
     "langchain-core>=1.2.22,<2.0.0",
-    "shopsavvy-sdk>=1.0.0,<2.0.0",
+    "shopsavvy-sdk>=1.1.0,<2.0.0",
 ]
 
 [project.urls]
-Homepage = "https://shopsavvy.com/data"
+Homepage = "https://shopsavvy.com/integrations/langchain"
 Documentation = "https://shopsavvy.com/data/documentation"
-Repository = "https://github.com/langchain-ai/langchain"
-Issues = "https://github.com/langchain-ai/langchain/issues"
-Changelog = "https://github.com/langchain-ai/langchain/releases?q=%22langchain-shopsavvy%22"
+Repository = "https://github.com/shopsavvy/langchain/tree/add-shopsavvy-partner/libs/partners/shopsavvy"
 
 [dependency-groups]
 test = [
