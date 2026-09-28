@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from langchain_core.callbacks import CallbackManagerForToolRun
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, ToolException
 from pydantic import Field, SecretStr, model_validator
 from shopsavvy import ShopSavvyDataAPI  # type: ignore[import-untyped]
 
@@ -53,12 +53,14 @@ class ShopSavvyProductSearch(BaseTool):  # type: ignore[override]
 
     name: str = "shopsavvy_product_search"
     description: str = (
-        "Search for products by keyword across ShopSavvy's database of 100M+ "
-        "products. Returns product names, brands, categories, barcodes, and "
+        "Search for products by keyword across ShopSavvy's product database. "
+        "Returns product names, brands, categories, barcodes, and "
         "identifiers. Use this to find products before looking up prices."
     )
     client: ShopSavvyDataAPI = Field(default=None)  # type: ignore[assignment]
     shopsavvy_api_key: SecretStr = Field(default=SecretStr(""))
+    handle_tool_error: bool = True  # type: ignore[assignment]
+    """Report API failures to the model as an error ToolMessage (set False to raise)."""
 
     @model_validator(mode="before")
     @classmethod
@@ -86,9 +88,8 @@ class ShopSavvyProductSearch(BaseTool):  # type: ignore[override]
         try:
             max_results = max(1, min(100, max_results))
             result = self.client.search_products(query, limit=max_results)
-            products = []
-            for product in result.data:
-                products.append({
+            products = [
+                {
                     "title": product.title,
                     "brand": product.brand,
                     "category": product.category,
@@ -96,10 +97,12 @@ class ShopSavvyProductSearch(BaseTool):  # type: ignore[override]
                     "asin": product.amazon,
                     "shopsavvy_id": product.shopsavvy,
                     "model": product.model,
-                })
+                }
+                for product in result.data
+            ]
             return json.dumps(products, indent=2)
         except Exception as e:
-            return repr(e)
+            raise ToolException(repr(e)) from e
 
 
 class ShopSavvyPriceComparison(BaseTool):  # type: ignore[override]
@@ -135,6 +138,8 @@ class ShopSavvyPriceComparison(BaseTool):  # type: ignore[override]
     )
     client: ShopSavvyDataAPI = Field(default=None)  # type: ignore[assignment]
     shopsavvy_api_key: SecretStr = Field(default=SecretStr(""))
+    handle_tool_error: bool = True  # type: ignore[assignment]
+    """Report API failures to the model as an error ToolMessage (set False to raise)."""
 
     @model_validator(mode="before")
     @classmethod
@@ -159,23 +164,24 @@ class ShopSavvyPriceComparison(BaseTool):  # type: ignore[override]
         """
         try:
             result = self.client.get_current_offers(identifier)
-            offers = []
-            for product in result.data:
-                for offer in product.offers:
-                    offers.append({
-                        "retailer": offer.retailer,
-                        "price": offer.price,
-                        "currency": offer.currency,
-                        "availability": offer.availability,
-                        "condition": offer.condition,
-                        "url": offer.url,
-                        "seller": offer.seller,
-                        "last_updated": offer.timestamp,
-                    })
+            offers = [
+                {
+                    "retailer": offer.retailer,
+                    "price": offer.price,
+                    "currency": offer.currency,
+                    "availability": offer.availability,
+                    "condition": offer.condition,
+                    "url": offer.url,
+                    "seller": offer.seller,
+                    "last_updated": offer.timestamp,
+                }
+                for product in result.data
+                for offer in product.offers
+            ]
             offers.sort(key=lambda x: x.get("price") or float("inf"))
             return json.dumps(offers, indent=2)
         except Exception as e:
-            return repr(e)
+            raise ToolException(repr(e)) from e
 
 
 class ShopSavvyPriceHistory(BaseTool):  # type: ignore[override]
@@ -210,6 +216,8 @@ class ShopSavvyPriceHistory(BaseTool):  # type: ignore[override]
     )
     client: ShopSavvyDataAPI = Field(default=None)  # type: ignore[assignment]
     shopsavvy_api_key: SecretStr = Field(default=SecretStr(""))
+    handle_tool_error: bool = True  # type: ignore[assignment]
+    """Report API failures to the model as an error ToolMessage (set False to raise)."""
 
     @model_validator(mode="before")
     @classmethod
@@ -238,7 +246,7 @@ class ShopSavvyPriceHistory(BaseTool):  # type: ignore[override]
         """
         try:
             days_back = max(1, min(365, days_back))
-            end_date = datetime.now()  # noqa: DTZ005
+            end_date = datetime.now()
             start_date = end_date - timedelta(days=days_back)
             result = self.client.get_price_history(
                 identifier,
@@ -247,14 +255,14 @@ class ShopSavvyPriceHistory(BaseTool):  # type: ignore[override]
             )
             history_summary = []
             for offer in result.data:
-                prices = [
-                    entry.price
-                    for entry in offer.price_history
-                    if entry.price is not None
-                ]
+                # History points arrive under ``history`` as
+                # {timestamp, price, availability}; the API has never sent a
+                # ``price_history`` key.
+                points = offer.history or []
+                prices = [entry.price for entry in points if entry.price is not None]
                 summary: dict[str, Any] = {
                     "retailer": offer.retailer,
-                    "data_points": len(offer.price_history),
+                    "data_points": len(points),
                 }
                 if prices:
                     summary["min_price"] = min(prices)
@@ -263,4 +271,4 @@ class ShopSavvyPriceHistory(BaseTool):  # type: ignore[override]
                 history_summary.append(summary)
             return json.dumps(history_summary, indent=2)
         except Exception as e:
-            return repr(e)
+            raise ToolException(repr(e)) from e
